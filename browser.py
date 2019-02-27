@@ -18,6 +18,12 @@ from objbrowser.attribute_model import (AttributeModel, safe_data_fn,
                                         ATTR_MODEL_NAME, ATTR_MODEL_PATH)
 from DCMTreeModel import DCMTreeModel
 
+def safe_element_value(de):
+    if de.VR == 'SQ':
+        return str(de.keyword)
+    else:
+        return str(de.value)
+
 ATTR_TAG_KEYWORD = AttributeModel('Tag Name',
     doc         = "The dicom tag keyword if known.", 
     data_fn     = safe_data_fn(lambda obj: obj.keyword),
@@ -36,9 +42,9 @@ ATTR_DCM_VR = AttributeModel('VR',
     col_visible = True,  
     width       = SMALL_COL_WIDTH)
 
-ATTR_DCM_VALUE = AttributeModel('VR',
-    doc         = "DICOM Value Representation. (str, int, etc.)", 
-    data_fn     = safe_data_fn(lambda obj: str(obj.value)),
+ATTR_DCM_VALUE = AttributeModel('Value',
+    doc         = "Element Value", 
+    data_fn     = safe_data_fn(safe_element_value),
     col_visible = True,  
     width       = SMALL_COL_WIDTH)
 

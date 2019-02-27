@@ -13,10 +13,10 @@ from pydicom.dataset import Dataset, DataElement
 #from pydicom.tag import tag_in_exception
 
 
-class DCMTreeModel(objbrowser.treemodel):
+class DCMTreeModel(objbrowser.treemodel.TreeModel):
     # Class for pydicom objects to sensibly fetch object children for tree.
     # Should override _fetchObjectChildren to allow reasonable data in tree.
-    _TREAT_LIKE_OBJECTS = False
+    _TREAT_LIKE_OBJECTS = True
     
     def _fetchObjectChildren(self, obj, obj_path):
         """ Fetches the children of a Python object. 
@@ -40,7 +40,7 @@ class DCMTreeModel(objbrowser.treemodel):
                                           False) for i,de in enumerate(obj)]))
         except AttributeError as e:
             # Ignore attribute error for datasets
-            if isinstance(obj, Dataset): 
+            if not isinstance(obj, Dataset): 
                 raise e
 
         # All descendents of Dataset and DataElement should be DataElements
@@ -63,14 +63,15 @@ class DCMTreeModel(objbrowser.treemodel):
             is_attr_list = [True] * len(obj_children)
             
             # handle sequence children as objects
-            obj_children_sq = list([(de.tag, de) for de in obj])
+            obj_children_sq = list([(de.tag, de) for de in obj 
+                                    if de.VR == 'SQ'])
             path_strings_sq = list(['{}.{}'.format(obj_path, de.tag) for de in
-                                    obj])
-            is_attr_list_sq = [False] * len(obj_children)
+                                    obj if de.VR == 'SQ'])
+            is_attr_list_sq = [False] * len(obj_children_sq)
             
-            obj_children.append(obj_children_sq)
-            path_strings.append(path_strings_sq)
-            is_attr_list.append(is_attr_list_sq)
+            obj_children.extend(obj_children_sq)
+            path_strings.extend(path_strings_sq)
+            is_attr_list.extend(is_attr_list_sq)
             
         assert len(obj_children) == len(path_strings) == len(is_attr_list), \
                 "sanity check"
