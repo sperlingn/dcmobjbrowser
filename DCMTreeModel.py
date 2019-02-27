@@ -50,28 +50,8 @@ class DCMTreeModel(TreeModel):
 
         return [DCMTreeItem(de,
                             '{} --- {}'.format(de.tag, de.keyword),
-                            '{}.{}'.format(obj_path, de.tag),
+                            ('{}.{}'.format(obj_path, de.tag) if
+                             obj_path != '<root>' else '{}'.format(de.tag)),
                             False,
                             has_children=de.VR == 'SQ')
                 for i, de in enumerate(obj)]
-
-        """
-        Replaced with much cleaner version
-
-        obj_children = [(de.tag, de) for de in obj]
-        path_strings = ['{}.{}'.format(obj_path, de.tag) for de in obj]
-        is_attr_list = [de.VR != 'SQ' for de in obj]
-
-        assert len(obj_children) == len(path_strings) == len(is_attr_list), \
-            "sanity check"
-        tree_items = []
-        for item, path_str, is_attr in zip(obj_children,
-                                           path_strings,
-                                           is_attr_list):
-            name, child_obj = item
-            child_item = TreeItem(child_obj, name, path_str, is_attr)
-            child_item.has_children = child_obj.VR == 'SQ'
-            tree_items.append(child_item)
-
-        return tree_items
-        """

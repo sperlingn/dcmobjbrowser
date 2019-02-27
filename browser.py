@@ -25,6 +25,7 @@ def safe_element_value(de):
     else:
         return str(de.value)
 
+
 VMVR_COL_WIDTH = 20
 
 ATTR_DCM_KEYWORD = AttributeModel('Tag Name',
