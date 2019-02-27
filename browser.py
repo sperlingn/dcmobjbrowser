@@ -3,6 +3,8 @@
 Spyder Editor
 
 PyDICOM Broswer using PyDICOM and objbrowser
+
+TODO: Replace treemodel with custom treemodel made for pydicom datasets.
 """
 
 
@@ -14,6 +16,7 @@ from objbrowser.version import DEBUGGING, PROGRAM_NAME
 from objbrowser.attribute_model import (AttributeModel, safe_data_fn, 
                                         DEFAULT_ATTR_DETAILS, SMALL_COL_WIDTH,
                                         ATTR_MODEL_NAME, ATTR_MODEL_PATH)
+from DCMTreeModel import DCMTreeModel
 
 ATTR_TAG_KEYWORD = AttributeModel('Tag Name',
     doc         = "The dicom tag keyword if known.", 
@@ -49,7 +52,7 @@ DEFAULT_DCM_ATTR_COLS = (
 )
 
 class DCMObj_Browser(objbrowser.ObjectBrowser):
-    def __init__(self, obj,
+    def __init__(self, obj=[],
                  name = '',
                  attribute_columns = DEFAULT_DCM_ATTR_COLS,
                  attribute_details = DEFAULT_ATTR_DETAILS,
@@ -81,6 +84,10 @@ class DCMObj_Browser(objbrowser.ObjectBrowser):
         super(DCMObj_Browser, self).__init__(obj, name, attribute_columns, 
                  attribute_details, show_callable_attributes, 
                  show_special_attributes, auto_refresh, refresh_rate, reset)
+        
+        self._tree_model = DCMTreeModel(obj, name, attr_cols = self._attr_cols)
+        
+        self._proxy_tree_model.setSourceModel(self._tree_model)
     
     def _setup_menu(self):
         """ Sets up the main menu.
@@ -140,6 +147,5 @@ class DCMObj_Browser(objbrowser.ObjectBrowser):
 
 
 if __name__ ==  '__main__':
-    
-    DCMObj_Browser.browse([])
+    DCMObj_Browser.browse()
     
