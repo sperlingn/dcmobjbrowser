@@ -37,14 +37,14 @@ class DCMTreeModel(TreeModel):
             # Not a dicom data element/dataset.  Use normal process
             return super()._fetchObjectChildren(obj, obj_path)
 
-        # Start with dataset
         try:
             if obj.VR == 'SQ':
                 # Sequence so children are a list and there are no attributes.
                 return [DCMTreeItem(de, i, '{}[{}]'.format(obj_path, i), False)
                         for i, de in enumerate(obj)]
         except AttributeError as e:
-            # Ignore attribute error for datasets
+            # Ignore attribute error for datasets like FileDataset as they
+            #  do not have attributes.
             if not isinstance(obj, Dataset):
                 raise e
 

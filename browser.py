@@ -3,8 +3,7 @@
 Spyder Editor
 
 PyDICOM Broswer using PyDICOM and objbrowser
-
-TODO: Replace treemodel with custom treemodel made for pydicom datasets.
+@author: Nicholas Sperling <Nicholas.Sperling@utoledo.edu>
 """
 
 
@@ -78,28 +77,6 @@ class DCMObj_Browser(objbrowser.ObjectBrowser):
                  auto_refresh=False,
                  refresh_rate=None,  # None uses value from QSettings
                  reset=False):
-        """ Constructor
-
-            :param obj: any Python object or variable
-            :param name: name of the object as it will appear in the root node
-            :param attribute_columns: list of AttributeColumn objects
-                that define which columns are present in the table
-                and their defaults
-            :param attribute_details: list of AttributeDetails objects that
-                define which attributes can be selected in the details pane.
-            :param show_callable_attributes: if True rows where the
-                'is attribute' and 'is callable' columns are both True,
-                are displayed. Otherwise they are hidden.
-            :param show_special_attributes: if True rows where the
-                'is attribute' is True and the object name starts and ends with
-                two underscores, are displayed. Otherwise they are hidden.
-            :param auto_refresh: If True, the contents refershes itsef every
-                <refresh_rate> seconds.
-            :param refresh_rate: number of seconds between automatic refreshes.
-                Default = 2.
-            :param reset: If true the persistent settings, such as column
-                widths, are reset.
-        """
 
         super(DCMObj_Browser, self).__init__(obj, name, attribute_columns,
                                              attribute_details,
@@ -110,6 +87,8 @@ class DCMObj_Browser(objbrowser.ObjectBrowser):
         self._tree_model = DCMTreeModel(obj, name, attr_cols=self._attr_cols)
 
         self._proxy_tree_model.setSourceModel(self._tree_model)
+
+    __init__.__doc__ == objbrowser.ObjectBrowser.__init__.__doc__
 
     def _setup_menu(self):
         """ Sets up the main menu.
@@ -147,6 +126,7 @@ class DCMObj_Browser(objbrowser.ObjectBrowser):
 
         super(DCMObj_Browser, self)._setup_menu()
 
+    
         openaction = QtWidgets.QAction(self, text="&Open", shortcut="Ctrl+O")
         openaction.triggered.connect(self.getDCMtree_dialog)
 
@@ -163,6 +143,10 @@ class DCMObj_Browser(objbrowser.ObjectBrowser):
         filefilter = "DICOM files (*.dcm);;All files (*)"
         filename = QtWidgets.QFileDialog.getOpenFileName(self, title, "",
                                                          filefilter)[0]
+
+        self.update_file(filename)
+
+    def update_file(self, filename):
         try:
             dcmdata = pydicom.dcmread(filename)
         except pydicom.errors.InvalidDicomError:
@@ -173,5 +157,17 @@ class DCMObj_Browser(objbrowser.ObjectBrowser):
         self.setWindowTitle("{} - {}".format(PROGRAM_NAME, filename))
 
 
+
+
 if __name__ == '__main__':
+    from sys import argv, exit
+    if len(argv) > 1:
+        filename=argv[1]
+        try:
+            dcmdata = pydicom.dcmread(filename)
+            DCMObj_Browser.browse(dcmdata, filename+"<root>")
+            exit()
+        except (pydicom.errors.InvalidDicomError, FileNotFoundError) as e:
+            pass
     DCMObj_Browser.browse()
+
