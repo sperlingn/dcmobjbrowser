@@ -50,8 +50,8 @@ class DCMTreeModel(TreeModel):
 
         return [DCMTreeItem(de,
                             '{} --- {}'.format(de.tag, de.keyword),
-                            ('{}.{}'.format(obj_path, de.tag) if
-                             obj_path != '<root>' else '{}'.format(de.tag)),
+                            ('{}.{}'.format(obj_path, de.keyword or de.tag) if
+                             obj_path[-6:] != '<root>' else '{}'.format(de.keyword or de.tag)),
                             False,
                             has_children=de.VR == 'SQ')
                 for i, de in enumerate(obj)]
