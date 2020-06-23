@@ -22,6 +22,27 @@ class DCMTreeItem(TreeItem):
         super().__init__(obj, name, obj_path, is_attribute, parent)
 
         self.has_children = has_children
+        try:
+            self.dcm_path = '{}'.format(obj.tag)
+        except AttributeError:
+            self.dcm_path = ''
+        
+    def _update_dcmpath(self, item):
+        if isinstance(item.obj, Dataset):
+            item.dcm_path='{}[{}]'.format(self.dcm_path, item.obj_name)
+            item.obj_path='{}[{}]'.format(self.obj_path, item.obj_name)
+        else:
+            item.dcm_path='{}.{}'.format(self.dcm_path, item.obj.tag)
+            item.obj_path='{}.{}'.format(self.obj_path, item.obj.keyword or item.obj.tag)
+
+    def append_child(self, item):
+        super().append_child(item)
+        self._update_dcmpath(item)
+
+    def insert_children(self, idx, items):
+        super().insert_children(idx, items)
+        for item in items:
+            self._update_dcmpath(item)
 
 
 class DCMTreeModel(TreeModel):
@@ -37,21 +58,18 @@ class DCMTreeModel(TreeModel):
             # Not a dicom data element/dataset.  Use normal process
             return super()._fetchObjectChildren(obj, obj_path)
 
-        try:
-            if obj.VR == 'SQ':
-                # Sequence so children are a list and there are no attributes.
-                return [DCMTreeItem(de, i, '{}[{}]'.format(obj_path, i), False)
-                        for i, de in enumerate(obj)]
-        except AttributeError as e:
-            # Ignore attribute error for datasets like FileDataset as they
-            #  do not have attributes.
-            if not isinstance(obj, Dataset):
-                raise e
-
-        return [DCMTreeItem(de,
-                            '{} --- {}'.format(de.tag, de.keyword),
-                            ('{}.{}'.format(obj_path, de.keyword or de.tag) if
-                             obj_path[-6:] != '<root>' else '{}'.format(de.keyword or de.tag)),
-                            False,
-                            has_children=de.VR == 'SQ')
-                for i, de in enumerate(obj)]
+        if isinstance(obj, Dataset):
+            # Datasets don't have properties, just elements.
+            return [DCMTreeItem(de,
+                        '{} --- {}'.format(de.tag, de.keyword),
+                        '{}'.format(de.keyword or de.tag),
+                        False,
+                        has_children=de.VR == 'SQ')
+                    for i, de in enumerate(obj)]
+        elif obj.VR == 'SQ':
+            # Sequence so children are a list and there are no attributes.
+            return [DCMTreeItem(de, i, '{}[{}]'.format(obj_path, i), False)
+                    for i, de in enumerate(obj)]
+        else:
+            # Not a sequence or a dataset, therefor no children
+            return None
