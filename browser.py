@@ -6,20 +6,21 @@ PyDICOM Broswer using PyDICOM and objbrowser
 @author: Nicholas Sperling <Nicholas.Sperling@utoledo.edu>
 """
 
+PROGRAM_NAME = "Python DICOM file browser and editor."
+PROGRAM_VERSION = 1.0
+
 
 import objbrowser
 import pydicom
 #from objbrowser.qtpy import QtWidgets
 from PyQt5 import QtWidgets, QtCore
-from objbrowser.version import DEBUGGING, PROGRAM_NAME
+from objbrowser.version import DEBUGGING
 from objbrowser.attribute_model import (safe_data_fn,
                                         SMALL_COL_WIDTH, MEDIUM_COL_WIDTH,
                                         ATTR_MODEL_NAME, ATTR_MODEL_PATH,
                                         ATTR_MODEL_REPR, logger)
 from DCMTreeModel import DCMTreeModel
 from AttributeModel import AttributeModel
-
-logger.level=2
 
 
 def safe_element_value(de):
@@ -37,7 +38,16 @@ def safe_ti_attribute(tree_item, attr, log_exceptions=False):
     except AttributeError as ex:
         if log_exceptions:
             logger.exception(ex)
-        return ""    
+        return ""
+    
+def safe_ti_write_value(tree_item, value):
+    de = tree_item.obj
+    try:
+        if isinstance(de, pydicom.dataelem.DataElement) and de.VR != 'SQ':
+            de.value = value            
+    except AttributeError as ex:
+        if log_exceptions:
+            logger.exception(ex)
 
 
 VMVR_COL_WIDTH = 20
@@ -69,6 +79,7 @@ ATTR_DCM_VR = AttributeModel('VR',
 ATTR_DCM_VALUE = AttributeModel('Value',
     doc         = "Element Value", 
     data_fn     = safe_data_fn(safe_element_value),
+    data_write_fn = safe_ti_write_value,
     col_visible = True,  
     width       = SMALL_COL_WIDTH,
     editable    = True)
@@ -107,22 +118,25 @@ class DCMObj_Browser(objbrowser.ObjectBrowser):
                                              show_special_attributes,
                                              auto_refresh, refresh_rate, reset)
 
-        self._tree_model = DCMTreeModel(obj, name, attr_cols=self._attr_cols)
+        self._tree_model = DCMTreeModel(obj, '', attr_cols=self._attr_cols)
 
         self._proxy_tree_model.setSourceModel(self._tree_model)
 
         bg_color = self.palette().color(self.palette().Background).name()
         self.setStyleSheet("""[readOnly="true"] {{ background-color: {} }}""".format(bg_color))
-
+        self.file_modified = False
+        self.name = name
+        self.obj = obj
 
     __init__.__doc__ = objbrowser.ObjectBrowser.__init__.__doc__
-    
-    
+
     def _setup_menu(self):
         """ Sets up the main menu.
         """
         file_menu = self.menuBar().addMenu("&File")
         file_menu.addAction("&Open", self.getDCMtree_dialog, "Ctrl+O")
+        file_menu.addAction("&Save", self._save_data, "Ctrl+S")
+        file_menu.addAction("Save &as", self._saveas_prompt, "F12")
         file_menu.addSeparator()
         file_menu.addAction("C&lose", self.close, "Ctrl+W")
         file_menu.addAction("E&xit", self.quit_application, "Ctrl+Q")
@@ -143,40 +157,68 @@ class DCMObj_Browser(objbrowser.ObjectBrowser):
         self.menuBar().addSeparator()
         help_menu = self.menuBar().addMenu("&Help")
         help_menu.addAction('&About', self.about)
-        
+
     def toggle_editable(self):
         """ Toggles the edit tool to enable editing.
         """
-        self.editor.setReadOnly(not self.editor.isReadOnly())
+        self.editor.setReadOnly(not self.edit_button.isChecked())
+        self.modify_widget.setVisible(self.edit_button.isChecked())
         self._change_details_field()
+
+    def cancel_edit(self):
+        if self.edit_button.isChecked(): self.edit_button.click()
+        self._change_details_field()
+
+    def apply_edit(self):
+        current_index = self.obj_tree.selectionModel().currentIndex()
+        tree_item = self._proxy_tree_model.treeItem(current_index)
+        button_id = self.button_group.checkedId()
+        assert button_id >= 0 and self._attr_details[button_id].editable, "No radio button selected. Please report this bug."
+        attr_details = self._attr_details[button_id]
+        if callable(attr_details.data_write_fn):
+            attr_details.data_write_fn(tree_item, self.editor.toPlainText())
+        self._tree_model._auxRefreshTree(self._proxy_tree_model.mapToSource(current_index))
+        self.edit_button.click()
+        self.file_modified = True
 
     def _setup_views(self):
         """ Override creation of setup views to enable StretchLastSection
         """
         super()._setup_views()
         self.obj_tree.header().setStretchLastSection(True)
+
+        radio_layout = self.button_group.button(0).parent().layout()
+
+        editable_widget = QtWidgets.QWidget()
+        editable_layout = QtWidgets.QHBoxLayout()
+        editable_layout.setContentsMargins(2, 2, 2, 2)
+        editable_widget.setLayout(editable_layout)
+
+        self.edit_button = QtWidgets.QPushButton(self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogDetailedView), "")
+        self.edit_button.setCheckable(True)
+        self.edit_button.clicked.connect(self.toggle_editable)
+
+        modify_widget = QtWidgets.QWidget()
+        modify_widget.setVisible(False)
+        modify_layout = QtWidgets.QHBoxLayout()
+        modify_layout.setContentsMargins(2, 2, 2, 2)
+        modify_widget.setLayout(modify_layout)
+
+        apply_button = QtWidgets.QPushButton(self.style().standardIcon(QtWidgets.QStyle.SP_DialogApplyButton), "")
+        apply_button.clicked.connect(self.apply_edit)
+
+        cancel_button = QtWidgets.QPushButton(self.style().standardIcon(QtWidgets.QStyle.SP_DialogCancelButton), "")
+        cancel_button.clicked.connect(self.cancel_edit)
         
-        radio_layout =  self.button_group.button(0).parent().layout()
-        for button_id, attr_detail in enumerate(self._attr_details):
-            if hasattr(attr_detail, "editable") and attr_detail.editable:
-                btn = self.button_group.button(button_id)
-                
-                editable_widget = QtWidgets.QWidget()
-                editable_layout = QtWidgets.QHBoxLayout()
-                editable_layout.setContentsMargins(0,0,0,0)
-                editable_widget.setLayout(editable_layout)
-                
-                radio_layout.replaceWidget(btn, editable_widget)
-                
-                editable_layout.addWidget(btn)
-                
-                edit_button = QtWidgets.QPushButton(self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogDetailedView), "")
-                edit_button.setCheckable(True)
-                edit_button.clicked.connect(self.toggle_editable)
-                
-                editable_layout.addWidget(edit_button)
-                break
-                
+        modify_layout.addWidget(apply_button)
+        modify_layout.addWidget(cancel_button)
+        
+        editable_layout.addWidget(self.edit_button)
+        editable_layout.addWidget(modify_widget)
+
+        radio_layout.insertWidget(0, editable_widget)
+        
+        self.modify_widget = modify_widget
 
     def _setup_menu_open_notused(self):
 
@@ -192,15 +234,67 @@ class DCMObj_Browser(objbrowser.ObjectBrowser):
         fm_first = filemenu.findChildren(QtWidgets.QAction)[0]
         newsep = filemenu.insertSeparator(fm_first)
         filemenu.insertAction(openaction, newsep)
+        
+    def _file_modified_prompt(self):
+        """ File modified since last saved or .  Prompt user.
+        """
+        title = "Unsaved Changes in {}".format(self.name)
+        message = ' '.join(["There are unsaved changes in the file \"{}\".",
+                   "Do you want to save your changes?"]).format(self.name)
+        buttons = (QtWidgets.QMessageBox.Save |
+                   QtWidgets.QMessageBox.Discard |
+                   QtWidgets.QMessageBox.Cancel)
+        default_button = QtWidgets.QMessageBox.Save
+
+        return QtWidgets.QMessageBox.warning(self, title, message,
+                                               buttons, default_button)
+    
+    def _saveas_prompt(self):
+        title = "Save as..."
+        filefilter = "DICOM files (*.dcm);;All files (*)"
+        filename = QtWidgets.QFileDialog.getSaveFileName(self,
+                                                         title, 
+                                                         self.name,
+                                                         filefilter)[0]
+        if filename=='':
+            return False
+        else:
+            self.name = filename
+            
+        return self._save_data()
+
+    def _save_data(self):
+        
+        try:
+            self.obj.save_as(self.name)
+        except (AttributeError, ValueError) as e:
+            logger.exception(e)
+            return False
+
+        self.file_modified = False                
+        return True
 
     def getDCMtree_dialog(self):
-        dcmdata = None
+        if self.file_modified or self.edit_button.isChecked():
+            result = self._file_modified_prompt()
+            if result == QtWidgets.QMessageBox.Cancel: 
+                return
+            elif result == QtWidgets.QMessageBox.Save:
+                if not self._saveas_prompt(): return
+                
+        
+        self._tree_model.beginResetModel()
+        self._tree_model.populateTree([], '')
+        self._tree_model.endResetModel()
+        
+        self.refresh()
         title = "Select DICOM file to read..."
         filefilter = "DICOM files (*.dcm);;All files (*)"
         filename = QtWidgets.QFileDialog.getOpenFileName(self, title, "",
                                                          filefilter)[0]
-
-        self.update_file(filename)
+        
+        if filename != '':
+            self.update_file(filename)
 
     def update_file(self, filename):
         try:
@@ -208,7 +302,11 @@ class DCMObj_Browser(objbrowser.ObjectBrowser):
         except pydicom.errors.InvalidDicomError:
             pass
         # self._tree_model = objbrowser.treemodel.TreeModel(dcmdata, filename)
-        self._tree_model.populateTree(dcmdata, '{}'.format(filename))
+        self.obj = dcmdata
+        self.name = '{}'.format(filename)
+        
+        self._tree_model.populateTree(dcmdata, '')
+        
         self.refresh()
         self.setWindowTitle("{} - {}".format(PROGRAM_NAME, filename))
         
