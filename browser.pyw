@@ -8,7 +8,8 @@ PyDICOM Broswer using PyDICOM and objbrowser.
 
     Reordering the list of items.
     Edit items in the main list
-    Add items
+    Add items and sequences
+    Reorder sequence items
     Image viewer
     Diffs
 """
@@ -16,20 +17,24 @@ PyDICOM Broswer using PyDICOM and objbrowser.
 
 
 PROGRAM_NAME = "Python DICOM file browser and editor."
-PROGRAM_VERSION = 1.0
+PROGRAM_VERSION = 1.1
+DEBUGGING = False
 
 
 import objbrowser
 import pydicom
 #from objbrowser.qtpy import QtWidgets
-from PyQt5 import QtWidgets, QtCore
-from objbrowser.version import DEBUGGING
+from PyQt5 import QtWidgets 
+from PyQt5 import QtCore # Only needed to allow pyinstaller to detect QtCore
+assert QtCore is not None
 from objbrowser.attribute_model import (safe_data_fn, tio_call,
                                         SMALL_COL_WIDTH, MEDIUM_COL_WIDTH,
                                         ATTR_MODEL_NAME, ATTR_MODEL_PATH,
                                         ATTR_MODEL_REPR, logger)
 from DCMTreeModel import DCMTreeModel
 from AttributeModel import AttributeModel
+
+
 
 
 def element_editable(de):
@@ -230,7 +235,8 @@ class DCMObj_Browser(objbrowser.ObjectBrowser):
             editable = False
 
         if editable:
-            # If this box is marked as editable either through fn or definition, allow write.
+            # If this box is marked as editable either through fn or definition,
+            #  allow write.
             attr_details = self._attr_details[button_id]
             if callable(attr_details.data_write_fn):
                 attr_details.data_write_fn(tree_item, self.editor.toPlainText())
